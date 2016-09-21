@@ -1,0 +1,7 @@
+Version$1
+Export Location$Z:\SpiderOak Hive\GitRepos\ExcelMakerConsole\ExcelMakerConsole\bin\Debug\hi.xlsx
+Summary Page$true
+Dataset1$Time$(s)$
+Dataset2$Stress$(ksi)$Engineering
+Dataset3$Strain$(in/in)$Engineering
+Dataset4$Strain Rate$(in/in/s)$Engineering
