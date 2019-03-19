@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+
 
 namespace ExcelMakerConsole
 {
@@ -13,17 +15,11 @@ namespace ExcelMakerConsole
         public String dataType = ""; //(True/Engineering)
         
 
-        public Dataset(string line)
+        public Dataset(JToken description)
         {
-            if (line.Split('$').Length < 3)
-            {
-                Console.WriteLine("Failed!: " + line);
-                return;
-            }
-            dataName = line.Split('$')[1];
-            dataUnits = line.Split('$')[2];
-            if (line.Split('$').Length >= 4)
-                dataType = line.Split('$')[3];
+            dataName = (string)description["name"];
+            dataUnits = (string)description["unit"];
+            dataType = (string)description["engineering_or_true"];
         }
     }
 }

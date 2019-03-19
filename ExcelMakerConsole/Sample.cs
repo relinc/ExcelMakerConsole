@@ -3,47 +3,38 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using Newtonsoft.Json.Linq;
 
 namespace ExcelMakerConsole
 {
     class Sample
     {
         public string name;
-        public DataColumn[] columns;
+        public DataColumn strain;
+        public DataColumn strainRate;
+        public DataColumn stress;
+        public DataColumn time;
+        public DataColumn frontFaceForce = null;
+        public DataColumn backFaceForce = null;
         public String color;
-      
-         public bool has_face_force()
+        public Sample(JObject sampleDescription, string sampleName)
         {
-            return columns.Length == 6;
+            name = sampleName;
+            strain = new DataColumn(sampleDescription["strain"]);
+            stress = new DataColumn(sampleDescription["stress"]);
+            strainRate = new DataColumn(sampleDescription["strainRate"]);
+            time = new DataColumn(sampleDescription["time"]);
+            if (sampleDescription["frontFaceForce"].HasValues && sampleDescription["backFaceForce"].HasValues)
+            {
+                frontFaceForce = new DataColumn(sampleDescription["frontFaceForce"]);
+                backFaceForce = new DataColumn(sampleDescription["backFaceForce"]);
+            }
+            color = (String)sampleDescription["color"];
+        }
+         public bool hasFaceForce()
+        {
+            return frontFaceForce != null && backFaceForce != null;
         } 
        
-        public void read_columns(String[] lines, List<Dataset> datasets)
-        {
-            int column_number = lines[0].Split(',').Length;
-            //allocate vector 
-            columns = new DataColumn[column_number];
-
-            for (int idx_col=0; idx_col<column_number; idx_col++)
-            {
-                columns[idx_col] = new DataColumn(lines.Length - 1);
-                columns[idx_col].dataSetInfo = datasets[idx_col];
-            }
-            for (int idx_line = 0; idx_line < columns[0].data.Length; idx_line++)
-            {
-                string line = lines[idx_line];
-                String[] line_components = line.Split(',');
-                for(int idx_col=0; idx_col<column_number; idx_col++)
-                {
-                    columns[idx_col].data[idx_line] = Double.Parse(line_components[idx_col]);
-                }
-            }
-        }
-
-        internal void readParametersFile(string parametersFile)
-        {
-            String file = File.ReadAllText(parametersFile);
-            if (file.Split('\n')[0].Split('$').Length >= 2)
-                color = file.Split('\n')[0].Split('$')[1];
-        }
     }
 }
