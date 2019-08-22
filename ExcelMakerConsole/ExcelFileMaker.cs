@@ -10,6 +10,7 @@ using OfficeOpenXml.Drawing.Chart;
 using OfficeOpenXml.Style;
 using OfficeOpenXml.Style.XmlAccess;
 using OfficeOpenXml.Table;
+using Newtonsoft.Json.Linq;
 
 namespace ExcelMakerConsole
 {
@@ -22,88 +23,42 @@ namespace ExcelMakerConsole
         private bool oneTrialOnSummaryPerGroup;
         private String exportPath;
         private int version;
-        private List<Dataset> datasets = new List<Dataset>();
         private List<Group> groups = new List<Group>();
-
+        private void setParameters(JObject jobDescription)
+        {
+            makeSummarypage = (bool)jobDescription["Summary_Page"];
+            version = (int)jobDescription["JSON_Version"];
+            exportPath = (string)jobDescription["Export_Location"];
+        }
         public ExcelFileMaker(String jobPath)
         {
             //jobPath = jobfile directory
-            String jobParameters = File.ReadAllText(jobPath + "\\" + "Parameters.txt");
-            Console.WriteLine("Job Parameters: " + jobParameters);
+            JObject jobDescription = JObject.Parse(File.ReadAllText(jobPath + "\\" + "Description.json"));
+            setParameters(jobDescription);
+            Console.WriteLine("Job Parameters: " + jobDescription.ToString());
             Console.WriteLine("Done");
 
-            //String infoSection = "";
-           // jobFilePath = jobPath;
-           // string readText = File.ReadAllText(jobPath);
-           // String[] sections = readText.Split(new string[] { "%#%@@!!!!" }, StringSplitOptions.None);
-           //String infoSection = sections[0];
-            setMakerParameters(jobParameters);
 
             Console.WriteLine("Make summmary page:" + makeSummarypage);
             Console.WriteLine("Export path: " + exportPath);
             Console.WriteLine("Version: " + version);
-            Console.WriteLine("Num datasets: " + datasets.Count);
-
-            foreach(string groupDir in Directory.GetDirectories(jobPath))
+            foreach (JToken groupJSONToken in (JArray)jobDescription["groups"])
             {
-                String groupName = Path.GetFileName(groupDir);
+                string groupName = (string)groupJSONToken;
                 Group group = new Group();
                 group.name = groupName;
-                foreach(string sampleDir in Directory.GetDirectories(groupDir))
+                JArray groupDescription = JArray.Parse(File.ReadAllText(jobPath + "\\" + group.name + ".json"));
+                foreach (JToken sampleToken in groupDescription)
                 {
-                    Sample sample = new Sample();
-                    sample.name = Path.GetFileName(sampleDir);
-
-                    String parametersFile = sampleDir + "\\" + "Parameters.txt";
-                    if (File.Exists(parametersFile))
-                        sample.readParametersFile(parametersFile);
-                    String dataFile = File.ReadAllText(sampleDir + "\\" + "Data.txt");
-                    String[] lines = dataFile.Split('\n');
-                    sample.column1 = new DataColumn(lines.Length-1);
-                    sample.column1.dataSetInfo = datasets[0];
-                    sample.column2 = new DataColumn(lines.Length-1);
-                    sample.column2.dataSetInfo = datasets[1];
-                    sample.column3 = new DataColumn(lines.Length-1);
-                    sample.column3.dataSetInfo = datasets[2];
-                    sample.column4 = new DataColumn(lines.Length-1);
-                    sample.column4.dataSetInfo = datasets[3];
-
-                    for (int i = 0; i < sample.column1.data.Length; i++)
-                    {
-                        string line = lines[i];
-                        sample.column1.data[i] = Double.Parse(line.Split(',')[0]);
-                        sample.column2.data[i] = Double.Parse(line.Split(',')[1]);
-                        sample.column3.data[i] = Double.Parse(line.Split(',')[2]);
-                        sample.column4.data[i] = Double.Parse(line.Split(',')[3]);
-                    }
-
-                        group.samples.Add(sample);
+                    
+                    string sampleName = (string)sampleToken;
+                    JObject sampleDescription = JObject.Parse(File.ReadAllText(jobPath + "\\" + groupName + "\\" + sampleName + ".json"));
+                    Sample sample = new Sample(sampleDescription, sampleName);
+                    group.samples.Add(sample);
                 }
                 groups.Add(group);
             }
              Console.WriteLine("Done building sample structure");
-        }
-
-        private void setMakerParameters(string infoSection)
-        {
-            foreach (String line in infoSection.Split('\n'))
-                setParameterFromLine(line);
-        }
-
-        private void setParameterFromLine(string line)
-        {
-            if (line.Split('$').Length < 2)
-                return;
-            String description = line.Split('$')[0];
-            String val = line.Split('$')[1];
-            if (description.Equals("Version"))
-                version = int.Parse(val);
-            else if (description.Equals("Export Location"))
-                exportPath = val;
-            else if (description.Equals("Summary Page"))
-                makeSummarypage = bool.Parse(val);
-            else if (description.StartsWith("Dataset"))
-                datasets.Add(new Dataset(line));
         }
 
         private string GetExcelColumnName(int columnNumber)
@@ -121,14 +76,27 @@ namespace ExcelMakerConsole
 
             return columnName;
         }
-
+   
         internal void exportExcelFile()
         {
-            
             //double timeScale = getTimeScaleFromString(scale);
             //bool summaryPage = summaryPage;
             string combindReportName = exportPath.Replace("\r","");
-            FileInfo newFile = new FileInfo(combindReportName);
+            Sample exemplarSample = groups[0].samples[0];
+            Dataset strainDataset = exemplarSample.strain.dataSetInfo;
+            Dataset stressDataset = exemplarSample.stress.dataSetInfo;
+            Dataset strainRateDataset = exemplarSample.strainRate.dataSetInfo;
+            Dataset timeDataset = exemplarSample.time.dataSetInfo;
+            Dataset frontFaceForceDataset = null;
+            Dataset backFaceForceDataset = null;
+            bool hasFaceForces = false;
+            if (exemplarSample.hasFaceForce())
+            {
+                hasFaceForces = true;
+                frontFaceForceDataset = exemplarSample.frontFaceForce.dataSetInfo;
+                backFaceForceDataset = exemplarSample.backFaceForce.dataSetInfo;
+            }
+                FileInfo newFile = new FileInfo(combindReportName);
             if (newFile.Exists)
             {
                 try
@@ -143,18 +111,32 @@ namespace ExcelMakerConsole
                 }
             }
             ExcelPackage combinedReport = new ExcelPackage(newFile);
+            String strainHeaderUnits = (strainDataset.dataType == "" ? "" : strainDataset.dataType + " ") + strainDataset.dataName + " " + strainDataset.dataUnits;
+            String stressHeaderUnits = (stressDataset.dataType == "" ? "" : stressDataset.dataType + " ") + stressDataset.dataName + " " + stressDataset.dataUnits;
+            String strainRateHeaderUnits = (strainRateDataset.dataType == "" ? "" : strainRateDataset.dataType + " ") + strainRateDataset.dataName + " " + strainRateDataset.dataUnits;
+            String timeHeaderUnits = timeDataset.dataName + " " + timeDataset.dataUnits;//"Time (" + scale + ")";
+            String frontFaceForceUnits = "";
+            String backFaceForceUnits = "";
+            
+            if (hasFaceForces)
+            {
+                 frontFaceForceUnits = (frontFaceForceDataset.dataType == "" ? "" : frontFaceForceDataset.dataType + " ") + frontFaceForceDataset.dataName + " " + frontFaceForceDataset.dataUnits;
+                 backFaceForceUnits = (backFaceForceDataset.dataType == "" ? "" : backFaceForceDataset.dataType + " ") + backFaceForceDataset.dataName + " " + backFaceForceDataset.dataUnits;
+            }
 
-            String strainHeaderUnits = (datasets[2].dataType == "" ? "" : datasets[2].dataType + " ") + datasets[2].dataName + " " + datasets[2].dataUnits;
-            String stressHeaderUnits = (datasets[1].dataType == "" ? "" : datasets[1].dataType + " ") + datasets[1].dataName + " " + datasets[1].dataUnits;
-            String strainRateHeaderUnits = (datasets[3].dataType == "" ? "" : datasets[3].dataType + " ") + datasets[3].dataName + " " + datasets[3].dataUnits;
-            String timeHeaderUnits = datasets[0].dataName + " " + datasets[0].dataUnits;//"Time (" + scale + ")";
+            String strainTitle = strainDataset.dataName;
+            String stressTitle = stressDataset.dataName;
+            String strainRateTitle = strainRateDataset.dataName;
+            String timeTitle = timeDataset.dataName;
+            String frontFaceForceTitle = "";
+            String backFaceForceTitle = "";
+            if(hasFaceForces)
+            {
+                frontFaceForceTitle = frontFaceForceDataset.dataName;
+                backFaceForceTitle = backFaceForceDataset.dataName;
 
-            String strainTitle = datasets[2].dataName;
-            String stressTitle = datasets[1].dataName;
-            String strainRateTitle = datasets[3].dataName;
-            String timeTitle = datasets[0].dataName;
+            }
 
-           
 
 
             var SummarySheet = combinedReport.Workbook.Worksheets.Add("Summary");
@@ -195,12 +177,14 @@ namespace ExcelMakerConsole
             SumstressStrainChart.YAxis.MinValue = 0;
             SumstressStrainChart.XAxis.MinValue = 0;
 
-
             int idx = 0;
             foreach(Group group in groups)
             {
 
                 var Sheet = combinedReport.Workbook.Worksheets.Add(group.name);
+                FileInfo placeHolderFile = new FileInfo("tmp");
+                ExcelPackage placeHolderExcel = new ExcelPackage(placeHolderFile);
+                var fakeSheet = placeHolderExcel.Workbook.Worksheets.Add("placeholder");
                 int columnCountName = 21;
                 int columnCountLabels = 21;
                 int spaceName = 5;
@@ -209,12 +193,13 @@ namespace ExcelMakerConsole
                 
                 foreach (Sample sample in group.samples)
                 {
-                    double[] timeData = sample.column1.data;
-                    double[] stressData = sample.column2.data;
-                    double[] strainData = sample.column3.data;
-                    double[] strainRateData = sample.column4.data;
+                    double[] timeData = sample.time.data;
+                    double[] stressData = sample.stress.data;
+                    double[] strainData = sample.strain.data;
+                    double[] strainRateData = sample.strainRate.data;
+                   
 
-                    Sheet.Cells[GetExcelColumnName(columnCountName) + "1"].Value = sample.name;
+                    Sheet.Cells[GetExcelColumnName(columnCountLabels) + "1"].Value = sample.name;
                     columnCountName += spaceName;
                     
                     //time
@@ -244,10 +229,32 @@ namespace ExcelMakerConsole
                     {
                         Sheet.Cells[GetExcelColumnName(columnCountLabels) + (i + 3).ToString()].Value = stressData[i];
                     }
+                    columnCountLabels++;
+                    if (sample.hasFaceForce())
+                    {
+                        double[] frontFaceData = sample.frontFaceForce.data;
+                        double[] backFaceData = sample.backFaceForce.data;
 
-                    columnCountLabels++;
-                    columnCountLabels++;
-                    
+                        
+                        Sheet.Cells[GetExcelColumnName(columnCountLabels) + "2"].Value = frontFaceForceUnits;
+                        for (int i = 0; i < timeData.Length; i++)
+                        {
+                            Sheet.Cells[GetExcelColumnName(columnCountLabels) + (i + 3).ToString()].Value = frontFaceData[i];
+                        }
+                        columnCountLabels++;
+                        Sheet.Cells[GetExcelColumnName(columnCountLabels) + "2"].Value = backFaceForceUnits;
+                        for (int i = 0; i < timeData.Length; i++)
+                        {
+                            Sheet.Cells[GetExcelColumnName(columnCountLabels) + (i + 3).ToString()].Value = backFaceData[i];
+                        }
+                        columnCountLabels++;
+                        columnCountLabels++;
+                    }
+                    else
+                    {
+                        columnCountLabels+=3;
+
+                    }
                 }
 
                 var strainChart = Sheet.Drawings.AddChart(strainHeaderUnits + " vs " + timeHeaderUnits, eChartType.XYScatterSmoothNoMarkers);
@@ -289,49 +296,75 @@ namespace ExcelMakerConsole
                 stressStrainChart.Title.Text = stressTitle + " vs " + strainTitle;
                 stressStrainChart.YAxis.MinValue = 0;
                 stressStrainChart.XAxis.MinValue = 0;
+                ExcelChart frontFaceForceChart = null;
+                ExcelChart backFaceForceChart = null;
+
+                if (hasFaceForces)
+                {
+                    frontFaceForceChart = Sheet.Drawings.AddChart("front " + frontFaceForceUnits + " vs " + timeHeaderUnits, eChartType.XYScatterSmoothNoMarkers);
+                    backFaceForceChart = Sheet.Drawings.AddChart("back " + backFaceForceUnits + " vs " + timeHeaderUnits, eChartType.XYScatterSmoothNoMarkers);
 
 
+                    frontFaceForceChart.SetPosition(800, 0);
+                    frontFaceForceChart.SetSize(600, 400);
+                    frontFaceForceChart.XAxis.Title.Text = timeHeaderUnits;
+                    frontFaceForceChart.YAxis.Title.Text = frontFaceForceUnits;
+                    frontFaceForceChart.Title.Text = frontFaceForceTitle + " vs " + timeTitle;
+                    frontFaceForceChart.YAxis.MinValue = 0;
+                    frontFaceForceChart.XAxis.MinValue = 0;
+
+
+                    backFaceForceChart.SetPosition(800, 600);
+                    backFaceForceChart.SetSize(600, 400);
+                    backFaceForceChart.XAxis.Title.Text = timeHeaderUnits;
+                    backFaceForceChart.YAxis.Title.Text = backFaceForceUnits;
+                    backFaceForceChart.Title.Text = backFaceForceTitle + " vs " + timeTitle;
+                    backFaceForceChart.YAxis.MinValue = 0;
+                    backFaceForceChart.XAxis.MinValue = 0;
+                }
                 int newColumnHunter = 21;
                 int trialnumber = 1;
                 bool trialAddedToSummary = false;
                 foreach (Sample sample in group.samples)
                 {
            
-                    int endIndex = sample.column1.data.Length - 1;
-                    //Console.WriteLine(combinedReport.Workbook.Worksheets[group.name] + " : Worksheet");
-                    //Console.WriteLine(combinedReport.Workbook.Worksheets[group.name].Cells + " : WorksheetCells");
-                    //Console.WriteLine(combinedReport.Workbook.Worksheets[group.name].Cells.Count() + " : WorksheetCellsCount");
-                    //Console.ReadKey();
+                    int endIndex = sample.time.data.Length - 1;
                     var timeExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter) + "3:" + GetExcelColumnName(newColumnHunter) + (endIndex + 2).ToString()];
-                    var StrainRateExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 1) + "3:" + GetExcelColumnName(newColumnHunter + 1) + (endIndex + 2).ToString()];
+                    var StrainRateExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter +1) + "3:" + GetExcelColumnName(newColumnHunter + 1) + (endIndex + 2).ToString()];
                     var strainExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 2) + "3:" + GetExcelColumnName(newColumnHunter + 2) + (endIndex + 2).ToString()];
                     var stressExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 3) + "3:" + GetExcelColumnName(newColumnHunter + 3) + (endIndex + 2).ToString()];
-                    //var forceIncidentExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 4) + "3:" + GetExcelColumnName(newColumnHunter + 4) + (endIndex + 2).ToString()];
-                    //var forceTransmissionExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 5) + "3:" + GetExcelColumnName(newColumnHunter + 5) + (endIndex + 2).ToString()];
-                    newColumnHunter += 5; //maybe should be 3
+                    var forceIncidentExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 4) + "3:" + GetExcelColumnName(newColumnHunter + 4) + (endIndex + 2).ToString()];
+                    var forceTransmissionExcel = combinedReport.Workbook.Worksheets[group.name].Cells[GetExcelColumnName(newColumnHunter + 5) + "3:" + GetExcelColumnName(newColumnHunter + 5) + (endIndex + 2).ToString()];
 
+                    newColumnHunter += 7;
+                   
                     
                         var strainRateChartSeries = strainRateChart.Series.Add(StrainRateExcel, timeExcel);
                         var strainChartSeries = strainChart.Series.Add(strainExcel, timeExcel);
                         var stressChartSeries = stressChart.Series.Add(stressExcel, timeExcel);
                         var stressStrainSeries = stressStrainChart.Series.Add(stressExcel, strainExcel);
-                        //var forceIncidentSeries = forceChart.Series.Add(forceIncidentExcel, timeExcel);
-                        //var forceTransmissionSeries = forceChart.Series.Add(forceTransmissionExcel, timeExcel);
+                    //initialize the face force charts
+                    ExcelChartSerie forceIncidentSeries= null;  //always_fake.Series.Add(stressExcel, strainExcel);
+                    ExcelChartSerie forceTransmissionSeries=null; //always_fake.Series.Add(stressExcel, strainExcel);
+                    if (sample.hasFaceForce()) {
+                            forceIncidentSeries = frontFaceForceChart.Series.Add(forceIncidentExcel, timeExcel);
+                            forceTransmissionSeries = backFaceForceChart.Series.Add(forceTransmissionExcel, timeExcel);
+                         }
+                                                   
                         if ((oneTrialOnSummaryPerGroup && !trialAddedToSummary) || !oneTrialOnSummaryPerGroup)
                         {
                             var sumstrainSeries = SumstrainChart.Series.Add(strainExcel, timeExcel);
                             var sumStressSeries = SumstressChart.Series.Add(stressExcel, timeExcel);
                             var sumStrainRateSeries = SumstrainRateChart.Series.Add(StrainRateExcel, timeExcel);
                             var sumStressStrainSeries = SumstressStrainChart.Series.Add(stressExcel, strainExcel);
-                            //var sumForceIncidentSeries = SumForceEquilibriumChart.Series.Add(forceIncidentExcel, timeExcel);
-                            //var sumForceTransmissionSeries = SumForceEquilibriumChart.Series.Add(forceTransmissionExcel, timeExcel);
+                            
 
 
                             sumstrainSeries.Header = group.name;
                             sumStressSeries.Header = group.name;
                             sumStrainRateSeries.Header = group.name;
                             sumStressStrainSeries.Header = group.name;
-
+                            
 
 
 
@@ -340,16 +373,13 @@ namespace ExcelMakerConsole
                             sumStressSeries.LineColor = summaryColors[sumColorSpot];
                             sumStrainRateSeries.LineColor = summaryColors[sumColorSpot];
                             sumStressStrainSeries.LineColor = summaryColors[sumColorSpot];
+                            
                         }
-                    //sumForceIncidentSeries.LineColor = colors[sumColorSpot];
-                    //sumForceTransmissionSeries.LineColor = "#110000";
+                        strainRateChartSeries.Header = sample.name;
+                        strainChartSeries.Header = sample.name;
+                        stressChartSeries.Header = sample.name;
+                        stressStrainSeries.Header = sample.name;
 
-                        strainRateChartSeries.Header = sample.name;// "Trial " + trialnumber.ToString();
-                        strainChartSeries.Header = sample.name;//"Trial " + trialnumber.ToString();
-                        stressChartSeries.Header = sample.name;//"Trial " + trialnumber.ToString();
-                        stressStrainSeries.Header = sample.name;//"Trial " + trialnumber.ToString();
-                    //forceIncidentSeries.Header = "Trial " + trialnumber.ToString() + " Incident";
-                    //forceTransmissionSeries.Header = "Trial " + trialnumber.ToString() + " Transmission";
 
                     int colorSpot = (trialnumber - 1) % trialColors.Length;
                     int transColor = (trialnumber) % trialColors.Length;
@@ -357,12 +387,16 @@ namespace ExcelMakerConsole
                     strainChartSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
                     stressChartSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
                     stressStrainSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
-                    //forceIncidentSeries.LineColor = trialColors[colorSpot];
-                    //forceTransmissionSeries.LineColor = trialColors[transColor];
+                    if(sample.hasFaceForce()){
+                        forceIncidentSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
+                        forceTransmissionSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
+                        forceIncidentSeries.Header = sample.name;
+                        forceTransmissionSeries.Header = sample.name;
+                    }
                     trialnumber++;
                     trialAddedToSummary = true;
                 }
-
+             
                 idx++;
             }
 
