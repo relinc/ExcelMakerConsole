@@ -14,21 +14,32 @@ using Newtonsoft.Json.Linq;
 
 namespace ExcelMakerConsole
 {
-    class ExcelFileMaker
+    public class ExcelFileMaker
     {
         String[] summaryColors = { "E90000", "EC8600", "000ED4", "7A378B", "008080", "FFD700", "FF8247", "8E8E38", "1B85B8", "5A5255", "559E83", "AE5A41", "C3Cb71" };
         String[] trialColors = { "3ba0c1", "ff8f20", "909090", "00bf00", "800080", "007580", "df0000" };
         private String jobFilePath;
         private bool makeSummarypage;
         private bool oneTrialOnSummaryPerGroup;
-        private String exportPath;
+        public String exportPath;
         private int version;
         private List<Group> groups = new List<Group>();
+        private List<ReferenceSample> referenceSamples = new List<ReferenceSample>();
         private void setParameters(JObject jobDescription)
         {
             makeSummarypage = (bool)jobDescription["Summary_Page"];
             version = (int)jobDescription["JSON_Version"];
             exportPath = (string)jobDescription["Export_Location"];
+            JToken maybeReferenceSamples = jobDescription["reference_samples"];
+            if(maybeReferenceSamples != null && maybeReferenceSamples.Type == JTokenType.Array)
+            {
+                foreach (JToken rSample in (JArray)maybeReferenceSamples)
+                {
+
+                    this.referenceSamples.Add(new ReferenceSample(rSample, (string)rSample["name"]));
+
+                }
+            }
         }
         public ExcelFileMaker(String jobPath)
         {
@@ -77,7 +88,7 @@ namespace ExcelMakerConsole
             return columnName;
         }
    
-        internal void exportExcelFile()
+        public void exportExcelFile()
         {
             //double timeScale = getTimeScaleFromString(scale);
             //bool summaryPage = summaryPage;
@@ -182,9 +193,9 @@ namespace ExcelMakerConsole
             {
 
                 var Sheet = combinedReport.Workbook.Worksheets.Add(group.name);
-                FileInfo placeHolderFile = new FileInfo("tmp");
-                ExcelPackage placeHolderExcel = new ExcelPackage(placeHolderFile);
-                var fakeSheet = placeHolderExcel.Workbook.Worksheets.Add("placeholder");
+                //FileInfo placeHolderFile = new FileInfo("tmp");
+                //ExcelPackage placeHolderExcel = new ExcelPackage(placeHolderFile);
+                //var fakeSheet = placeHolderExcel.Workbook.Worksheets.Add("placeholder");
                 int columnCountName = 21;
                 int columnCountLabels = 21;
                 int spaceName = 5;
@@ -398,6 +409,94 @@ namespace ExcelMakerConsole
                 }
              
                 idx++;
+            }
+
+            if(this.referenceSamples.Count > 0)
+            {
+                String SHEET_NAME = "Reference Samples";
+                var Sheet = combinedReport.Workbook.Worksheets.Add(SHEET_NAME);
+                int columnCountName = 11;
+                int columnCountLabels = 11;
+                int spaceName = 5;
+
+
+
+                foreach (ReferenceSample sample in this.referenceSamples)
+                {
+                    double[] stressData = sample.stressData.data;
+                    double[] strainData = sample.strainData.data;
+
+
+                    Sheet.Cells[GetExcelColumnName(columnCountLabels) + "1"].Value = sample.name;
+                    columnCountName += spaceName;
+
+                    //Strain
+                    Sheet.Cells[GetExcelColumnName(columnCountLabels) + "2"].Value = strainHeaderUnits;
+                    for (int i = 0; i < strainData.Length; i++)
+                    {
+                        Sheet.Cells[GetExcelColumnName(columnCountLabels) + (i + 3).ToString()].Value = strainData[i];
+                    }
+                    columnCountLabels++;
+                    //Stress
+                    Sheet.Cells[GetExcelColumnName(columnCountLabels) + "2"].Value = stressHeaderUnits;
+                    for (int i = 0; i < stressData.Length; i++)
+                    {
+                        Sheet.Cells[GetExcelColumnName(columnCountLabels) + (i + 3).ToString()].Value = stressData[i];
+                    }
+                    columnCountLabels++;
+
+   
+                    columnCountLabels += 1;
+
+                }
+
+                var stressStrainChart = Sheet.Drawings.AddChart(stressHeaderUnits + " vs " + strainHeaderUnits, eChartType.XYScatterSmoothNoMarkers);
+                stressStrainChart.SetPosition(0, 0);
+                stressStrainChart.SetSize(600, 400);
+
+                stressStrainChart.XAxis.Title.Text = strainHeaderUnits;
+                stressStrainChart.YAxis.Title.Text = stressHeaderUnits;
+                stressStrainChart.Title.Text = stressTitle + " vs " + strainTitle;
+                stressStrainChart.YAxis.MinValue = 0;
+                stressStrainChart.XAxis.MinValue = 0;
+
+                int newColumnHunter = 10;
+                int trialnumber = 1;
+                foreach (ReferenceSample sample in this.referenceSamples)
+                {
+
+                    int endIndex = sample.strainData.data.Length - 1;
+                    var strainExcel = combinedReport.Workbook.Worksheets[SHEET_NAME].Cells[GetExcelColumnName(newColumnHunter + 1) + "3:" + GetExcelColumnName(newColumnHunter + 1) + (endIndex + 2).ToString()];
+                    var stressExcel = combinedReport.Workbook.Worksheets[SHEET_NAME].Cells[GetExcelColumnName(newColumnHunter + 2) + "3:" + GetExcelColumnName(newColumnHunter + 2) + (endIndex + 2).ToString()];
+
+                    newColumnHunter += 3;
+
+                    var stressStrainSeries = stressStrainChart.Series.Add(stressExcel, strainExcel);
+
+
+                
+                    var sumStressStrainSeries = SumstressStrainChart.Series.Add(stressExcel, strainExcel);
+
+
+                    sumStressStrainSeries.Header = SHEET_NAME;
+
+
+
+
+                    int sumColorSpot = (idx) % summaryColors.Length;
+                    sumStressStrainSeries.LineColor = summaryColors[sumColorSpot];
+
+
+                    stressStrainSeries.Header = sample.name;
+
+
+                    int colorSpot = (trialnumber - 1) % trialColors.Length;
+                    int transColor = (trialnumber) % trialColors.Length;
+
+                    stressStrainSeries.LineColor = sample.color == null ? trialColors[colorSpot] : sample.color;
+                    
+                    trialnumber++;
+                }
             }
 
             if (!makeSummarypage)
