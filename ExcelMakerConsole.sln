@@ -1,9 +1,14 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.21005.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.26430.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExcelMakerConsole", "ExcelMakerConsole\ExcelMakerConsole.csproj", "{36A93428-DAAF-4DCE-855F-33D069AD6111}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestExcelMaker", "TestExcelMaker\TestExcelMaker.csproj", "{E03855BD-2F38-45F7-B89C-C1D361DD8BA7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{36A93428-DAAF-4DCE-855F-33D069AD6111} = {36A93428-DAAF-4DCE-855F-33D069AD6111}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +20,10 @@ Global
 		{36A93428-DAAF-4DCE-855F-33D069AD6111}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{36A93428-DAAF-4DCE-855F-33D069AD6111}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{36A93428-DAAF-4DCE-855F-33D069AD6111}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E03855BD-2F38-45F7-B89C-C1D361DD8BA7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E03855BD-2F38-45F7-B89C-C1D361DD8BA7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E03855BD-2F38-45F7-B89C-C1D361DD8BA7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E03855BD-2F38-45F7-B89C-C1D361DD8BA7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,0 +1,6 @@
+ExcelMakerConsole/bin/
+ExcelMakerConsole/obj/
+*.xlsx
+TestExcelMaker/bin/
+TestExcelMaker/obj/
+packages/
