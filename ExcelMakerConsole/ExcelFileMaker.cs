@@ -53,11 +53,13 @@ namespace ExcelMakerConsole
             Console.WriteLine("Make summmary page:" + makeSummarypage);
             Console.WriteLine("Export path: " + exportPath);
             Console.WriteLine("Version: " + version);
-            foreach (JToken groupJSONToken in (JArray)jobDescription["groups"])
+            foreach (JObject groupJSONToken in (JArray)jobDescription["groups"])
             {
-                string groupName = (string)groupJSONToken;
+                string groupName = (string)groupJSONToken["name"];
+                string groupColor = (string)groupJSONToken["color"];
                 Group group = new Group();
                 group.name = groupName;
+                group.color = groupColor;
                 JArray groupDescription = JArray.Parse(File.ReadAllText(jobPath + "\\" + group.name + ".json"));
                 foreach (JToken sampleToken in groupDescription)
                 {
@@ -375,17 +377,17 @@ namespace ExcelMakerConsole
                             sumStressSeries.Header = group.name;
                             sumStrainRateSeries.Header = group.name;
                             sumStressStrainSeries.Header = group.name;
-                            
 
 
 
-                            int sumColorSpot = (idx) % summaryColors.Length;
-                            sumstrainSeries.LineColor = summaryColors[sumColorSpot];
-                            sumStressSeries.LineColor = summaryColors[sumColorSpot];
-                            sumStrainRateSeries.LineColor = summaryColors[sumColorSpot];
-                            sumStressStrainSeries.LineColor = summaryColors[sumColorSpot];
-                            
-                        }
+
+                            // int sumColorSpot = (idx) % summaryColors.Length;
+                            sumstrainSeries.LineColor = group.color.TrimStart('#').Substring(0, 6);//summaryColors[sumColorSpot];
+                            sumStressSeries.LineColor = group.color.TrimStart('#').Substring(0, 6); ; ;//summaryColors[sumColorSpot];
+                            sumStrainRateSeries.LineColor = group.color.TrimStart('#').Substring(0, 6); ; ;//summaryColors[sumColorSpot];
+                            sumStressStrainSeries.LineColor = group.color.TrimStart('#').Substring(0, 6); ; ;//summaryColors[sumColorSpot];
+
+                    }
                         strainRateChartSeries.Header = sample.name;
                         strainChartSeries.Header = sample.name;
                         stressChartSeries.Header = sample.name;
@@ -484,7 +486,7 @@ namespace ExcelMakerConsole
 
 
                     int sumColorSpot = (idx) % summaryColors.Length;
-                    sumStressStrainSeries.LineColor = summaryColors[sumColorSpot];
+                    sumStressStrainSeries.LineColor =  summaryColors[sumColorSpot];
 
 
                     stressStrainSeries.Header = sample.name;

@@ -52,6 +52,9 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="JobFiles\JobFileNewFormat\Description.json" />
+    <None Include="JobFiles\JobFileNewFormat\G1.json" />
+    <None Include="JobFiles\JobFileNewFormat\G1\polyblack1.json" />
     <None Include="JobFiles\MultipleEverythingJobFile\Description.json" />
     <None Include="JobFiles\MultipleEverythingJobFile\Group 1.json" />
     <None Include="JobFiles\MultipleEverythingJobFile\Group 1\013.json" />

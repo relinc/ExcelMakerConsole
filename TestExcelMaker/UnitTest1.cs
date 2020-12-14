@@ -46,5 +46,17 @@ namespace TestExcelMaker
 
             maker.exportExcelFile();
         }
+
+        [TestMethod]
+        public void TestNewSampleGroupFormat()
+        {
+            string solution_dir = Directory.GetParent(Directory.GetCurrentDirectory()).Parent.FullName;
+
+            ExcelFileMaker maker = new ExcelFileMaker(Path.Combine(solution_dir, "JobFiles", "JobFileNewFormat"));
+
+            maker.exportPath = Path.Combine(solution_dir, "JobFileNewFormat.xlsx");
+
+            maker.exportExcelFile();
+        }
     }
 }

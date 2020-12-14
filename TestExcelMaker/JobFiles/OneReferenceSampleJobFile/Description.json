@@ -2,7 +2,7 @@
   "JSON_Version": 1,
   "Export_Location": "C:\\Users\\mark\\ExcelMakerConsole\\TestExcelMaker\\Job2.xlsx",
   "Summary_Page": true,
-  "groups": [ "G1" ],
+  "groups": [ {"name":"G1", "color": "#4d66ccff"} ],
   "reference_samples": [
     {
       "strain": {
